@@ -1,0 +1,250 @@
+GUIA RESUMIDA PROYECTO UPTASK - ADMINISTRADOR DE PROYECTOS
+
+***INICIANDO PROYECTO, CREANDO ARCHIVOS PHP***
+-Creamos la estructura HTML y los estilos CSS para 'login.html', 'crear-cuenta.html' e 'index.html'
+-Migramos todo a un localhost y lo separamos en archivos '.php' en todas las paginas tendran el mismo 'header.php' y 
+el mismo 'footer.php'.
+-Para el caso de de 'index.php' solamente el tendra el 'barra.php' y 'sidebar.php', a pesar de que 'crear-cuenta.php'
+y 'login.php' tienen el mismo formulario no crearemos un '.php' para esto ya que necesitamos que sean independientes
+-Como en el 'header.php' obtenemos la clase del <body> para cada pagina a creamos una funcion en el archivo de
+'inc/funciones/funciones.php' llamada 'obtenerPagina()' donde con un metodo especifico obtenemos el valor de la pagina
+es decir su nombre sin el '.php' para que al cargar esa pagina la clase que tenga esos estilos especificos puedan
+prevalecer segun la pagina
+
+
+***CREANDO BD Y CONECTANDO CON BD DESDE PHP***
+
+-Creamos la base de datos en phpMyAdmin llamada 'uptask' con el utf8_general_ci e insertamos su primera tabla llamada
+'usuarios' la cual contendra los campos/columnas id, usuario y password
+-Creamos la conexion a la BD desde PHP en el archivo 'inc/funciones/conexion-bd.php' creamos la conexio creando un
+nuevo objeto 'mysli', colocamos los datos del servidor el acceso a MySQL y que el nombre de la BD
+-Aseguramos la compatibildiad de caracteres con 'set_charset' para UTF-8.
+
+***LECTURA DE DATOS DEL FORMULARIO PARA CREAR USUARIO CON JS Y PHP***
+
+-Como el caso de 'index.php' sera una pagina restringida para los usuarios hasta que en 'login.php' se logeen 
+correctamente entonces utilzando la misma funcion de 'obtenerPaginaActual' de 'funciones.php' le diremos que si la
+pagina en la que nos encontramos es 'crear-cuenta' o 'login' este leera el <script> de 'formulario.js'
+-En el caso contrario es decir quedando 'index.php' tendra que leer el <script> 'scripts.js'
+-Una vez especificando esto nos ubicamos en 'formulario.js' donde validaremos el formulario de 'crear-cuenta.php'
+agregando un evento de 'submit' para ir a la funcion de 'validarRegistro' una vez hecho esto quitamos la accion
+por default del formulario y validamos 3 cosas el nombre, contraseña y el <input> de tipo 'hidden' que al presionar
+el 'submit' del formulario nos dira que tipo de 'accion' estaremos haciendo en este caso del tipo 'crear'
+-Validamos que los campos no deben ir vacios, en caso de ir vacios hacemos uso de la libreria de JS conocida como
+'sweetalert' en la cual creamos alertas mas interactivas, en este caso sera una alerta del tipo 'error' donde nos
+pedira que ambos campos de creacion de cuenta son obligatorios
+-En caso de que los campos sean correctos creamos el FormData para añadir los 3 datos a un arreglo y hacemos el 
+llamado a AJAX, creando el objeto para la conexion al servidor, abriendo la conexion en este caso de tipo 'POST' y
+la URL a la cual se solicitara la peticion en este caso sera 'inc/modelos/modelo-admin.php' y esperamos el retorno
+de los datos del servidor con un 'xhr.responseText'
+-En el lado del servidor PHP, verificamos que la accion que contiene el arreglo de $_POST sea 'crear' y  creamos 
+las variables asociadas a este arreglo enviado por FormData, en el caso especial del password, necesitamos hashearlo, 
+es decir no guardar la contraseña tal cual en la base de datos si no crear un 'hash' encriptado mediante PHP 
+entre mas costo otorguemos mas caracteres tendra para encriptarlo en este caso seran 60
+
+***INSERTAR USUARIO A LA BD Y RETORNAR UNA VALIDACION EXITOSA EN JS***
+
+-Una vez hasheado el password creamos una conexion a la BD y realizamos la consulta de tipo statement donde sera un 
+INSERT INTO usuarios y recibira 2 valores tipo string (ss), el usuario y el password hasheado.
+-Ejecutamos la consulta y verificamos si algun registro/fila fue afectado, de ser asi creamos un arreglo asociativo
+como respuesta de que se agrego correctamente el registro a la BD, convertimos a JSON el arreglo y lo enviamos al cliente
+-En el lado del cliente verificamos en JS con 'xhr.response' que la respueta sea correcta y convertimos el JSON a un
+objeto de JS para poder manipulas los datos, si la respuesta fue 'correcto' y tenemos que corroborar que si es un nuevo 
+usuario es decir si la accion/tipo es 'crear' enviamos un sweetalert de tipo 'success' o exitoso en caso de que exista
+algun error en el registro de la cuenta enviamos otro sweetalert de tipo 'error'
+
+***LOGIN DE USUARIOS, VERIFICACION DE PASSWORDS Y REDIRECCIONANDO A 'INDEX.PHP'***
+
+-Dado que 'login.php' y 'crear-cuenta.php' utilizan el mismo formulario a pesar de ser diferentes paginas, reutilizaremos
+el mismo llamado a AJAX tanto para 'crear' como para 'login'
+-Dentro de 'modelo-admin.php' creamos otra condicion en caso de la accion sea 'login' creamos otra consulta distinta 
+sera un statement de SELECT los 3 campos, id, usuario y password con bind_param solamente comparamos que sea tipo
+string, ejecutamos la consulta y ahora detenemos la ejecucion para hacer una consulta la BD con 'bind_result' y asignamos
+3 variables diferentes a los 3 campos de la tabla, estas 3 variables nos serviran para manipular los datos y traemos
+los resultados con 'fetch'
+-Si el nombre de usuario existe entonces comparamos ambas contraseñas con 'password_verify'(la que es sin hashear y 
+la de la BD) si ambas son iguales iniciamos sesion; en caso de que la contraseña sea incorrecta enviamos que el
+'password_incorrecto' y en caso de que el usuario no exista enviamos la respuesta de que el 'usuario_noexiste'
+-Enviamos la respuesta como JSON, sea correcta o no, y la recibimos en la misma respuesta y en el mismo objeto de JS
+sin embarto si la accion/tipo ahora es 'login' y si es correcto enviamos el sweetalert de 'success' y despues redireccionamos
+a la pagina principal que es 'index.php'
+-En caso de que el password es incorrecto entonces enviamos otro sweetalert de 'error', si el usuario no existe enviamos
+un sweetalert de 'error' tambien pero distinto
+
+***SESION DE AREA SEGURA PARA 'INDEX.PHP'***
+
+-En este punto otorgamos algo de seguridad para el 'index.php' esto es necesario ya que aun podemos acceder a 'index.php'
+sin logearnos y la sesion debe existir para que en cuanto nos hagamos un login correcto nos redireccione a 'index.php'
+-Para eso creamos el archivo de de 'inc/funciones/sesiones.php' donde creamos la funcion 'usuario_autenticado' y verificamos
+si el usuario ha iniciado $_SESSION en la funcion 'revisar_usuario', es decir si se ejecuto la consulta de 'login' de forma
+correcta en 'modelo-admin'
+-Sin embargo aparte de arracar la sesion y la funcion de 'usuario_autenticado' debemos incluir este archivo en la parte incial
+de la pagina del sitio al que queremos restringir acceso, en este caso es 'index.php'
+-Una vez que inlcuimos 'sesiones.php' en 'index.php' debemos otorgarle la accion al enlace de 'cerrar sesion' a la pagina 
+principal de 'index.php' y una vez que le demos click al enlace nos redireccione a 'login.php?cerrar_sesion=true', colocamos 
+el "cerrar_sesion=true" en la URL para que una vez que estemos en 'login.php' arranquemos la sesion nuevamente y con un $_GET
+obtenemos el valor de 'cerrar_sesion' como es 'true' cerramos la sesion $_SESSION con un arreglo vacio
+-Utilizamos este metodo ya que en su defecto la sesion existiria todavia, aun sin logearnos y es necesario cerrarla para que 
+no obtengan informacion de usuario y id de la BD
+
+***FUNCIONALIDAD DE AGREGAR PROYECTOS, CREACION DE TABLA DE PROYECTOS DE BD***
+
+-Para agregar proyectos funcionara cuando demos 'click' en nuestro enlace 'Nuevo Proyecto' haciendolo en 'scripts.js' y 
+llamando la funcion 'nuevoProyecto' donde crearemos un <li> para ese nuevo proyecto el cual contendra un <input> el cual 
+insertaremos el id 'nuevo-proyecto'
+-Este <li> lo agregamos a un padre en este caso sera la lista <ul> de Proyectos que tenemos en el sidebar para que puedan
+aparecer en el DOM
+-Una vez que insertamos texto <input> en este nuevo Proyecto debemos crear otro evento para que cuando hagamos enter en 
+este <input> este se agregue al <ul> y aparezca en el DOM, para eso utilizamos el evento 'keypress', es decir cuando 
+hagamos click en la tecla 'Enter' con los metodos 'which' o 'keyCode' obtendremos el valor decimal del codigo ASCII de la
+tecla presionada con el evento, en este caso el codigo ASCII de ENTER es 13
+-Si el valor presionado es igual a 13 entonces mandamos llamar otro metodo para guardar en la BD que es 'guardarProyectoDB'y
+como argumento enviamos el 'value' del input que es lo que escribimos como tal, ademas al hacer Enter debemos remover
+este <input> del DOM ya que ya tenemos este valor, es necesario hacerlo de esta manera ya que no agrega el <li> completamente
+solamente de forma temporal, ya que si recargamos la pagina el <li> que insertamos no existe
+-Creamos la tabla de 'proyectos' en la BD de 'uptask', esta tabla solo tendra 2 campos, el de 'id' y el de 'nombre' que sera
+el nombre del proyecto
+
+***INSERTANDO PROYECTOS A LA BD, MOSTRAR NOTIFICACION Y EN EL DOM/HTML***
+
+-En la funcion de 'scripts.js' que llamamos 'guardarProyectoDB' creamos un llamado a AJAX, tambien creamos un FormData en el
+cual agregaremos el 'nombreProyecto' y la accion que sera 'crear'
+-Abrimos la conexion la cual sera de tipo 'POST' a la URL 'inc/modelos/modelo-proyecto.php' cargamos los datos y esperamos
+una respuesta al enviar la peticion (request) de los datos
+-En el lado de 'modelo-proyecto.php' vamos a recibir dos argumentos para el arreglo $_POST la accion 'crear' y el 'proyecto'
+si la accion es 'crear' creamos la conexion a la BD y realizamos la consulta a la BD con un SQL statement
+-Preparamos la consulta que sera un INSERT INTO proyectos del cual solo recibiremos un parametro tipo string (s) que es 
+el nombre del proyecto, ejecutamos la consulta y verificamos la respuesta del servidor de MySQL si es que se afecto un 
+registro/fila, si es asi retornamos la respuesta 'correcto', el 'id' de ese proyecto, el tipo de accion que es 'crear' y
+el 'nombre_proyecto' lo convertimos en un JSON y enviamos la respuesta al cliente
+-Del lado del cliente con JS recibimos el JSON y lo convertimos a objeto de JS, de esa manera creamos las variables asociadas
+a ese objeto con los datos del 'proyecto', validmos que la respuesta del servidor sea 'correcto' y la accion/tipo sea 'crear'
+si se cumplen ambas condiciones entonces ahora si agregamos al DOM el <li> con el nombre del proyecto
+-Al mismo tiempo creamos un URL 'index.php?id_proyecto=' con el 'id_proyecto' especifico que recibimos del servidor 
+y añadimos el id=proyecto: id_proyecto, al terminar agregamos este <li> al <ul> de lista de proyectos y enviamos un sweetalert 
+de exitoso indicando que el Proyecto + nombre del Proyecto + se creo correctamente y luego si es valor de resultado existe
+nos redireccione a index.php?id_proyecto=id_proyecto, en caso de existir un error enviamos un sweetalert tipo 'error'
+
+***CARGAR PROYECTOS EN EL 'SIDEBAR.PHP' Y MOSTRAR EL NOMBRE DEL PROYECTO ACTUAL***
+
+-En lugar de utilizar AJAX utilizaremsos una funcion estatica de PHP lo que hara que la pagina se recargue cada que eligamos
+un proyecto, creamos la funcion 'obtenerProyectos' en 'funciones.php' esta funcion no recibira ningun parametro creara
+una conexion con la BD y en caso no existir ningun error ejecutara una consulta SQL SELECT a 'proyectos' obteniendo
+el 'id' y el 'nombre' del proyecto
+-Nos ubicamos en 'sidebar.php' y dentro del <ul> mandamos llamar la funcion 'obtenerProyectos' de PHP, para evitar errores
+comprobamos que este arreglo exista y lo iteramos con un 'foreach' donde crearemos <li> que contendran un enlace <a>
+que nos redireccionara a la URL especifica del 'id' de cada proyecto y nos mostrara el nombre del Proyecto como texto
+-Adicional en el <main> del 'index.php?id=id_proyecto' nos mostrara el nombre de ese proyecto segun el 'id' del proyecto
+para eso creamos primeramente una variable $id_proyecto en la  parte superior de 'index.php' de la cual con un $_GET 
+obtendremos de la URL el 'id_proyecto' creamos la funcion de PHP en 'funciones.php' llamada 'obtenerNombreProyecto'
+-Con esta funcion 'obtenerNombreProyecto' que recibira de argumento el 'id' y tendra un valor por default de 'null' creamos
+una consulta SELECT de la cual solo obtendremos el 'nombre' de 'proyectos' y mandamos llamar esta funcion desde 'index.php'
+y enviamos como parametro el 'id_proyecto' que obtuvimos de la URL con $_GET
+-En caso de existir este 'id' y por ende el proyecto con un 'foreach' iteramos el arreglo (aunque sea un solo valor) para
+que lo muestre como titulo con un <h1> del Proyecto Actual, en caso de no existir este proyecto creamos un 
+<h1>Selecciona un proyecto a la izquierda</h1>
+
+***VALIDACION DEL FORMULARIO PARA LA CREACION DE NUEVA TAREAS, CREACION DE TABLA 'TAREAS'***
+
+-Una vez que creamos y elegimos el Proyecto, cada Proyecto tendra su lista de tareas las cuales las crearemos con un
+<input> y enviaremos con el boton 'Agregar'
+-Para eso primeramente creamos la tabla de 'tareas' en la BD de 'uptask', en un inicio creamos los campos 'id', 'nombre' y
+'estado', en donde 'estado' nos indicara si la tarea fue completada o no, siendo 0 (default) que no esta completada y '1' 
+que ya fue completada, ademas necesitamos crear una llave foranea del 'id_proyecto' que este relacionada con la tabla
+'proyecto', es decir, aunque cada 'tarea' tenga su propio 'id' una o mas tareas estaran asociadas con un mismo proyecto 
+con un mismo 'id_proyecto'
+-En 'scripts.js' creamos otro evento para el boton de submit de nueva-tarea, al hacer click en el llamamos la funcion
+'agregarTarea' donde primeramente validamos que el campo del <input> de nombre-tarea tenga algo escrito, en caso de tener
+algo escrito creamos nuevamente un FormData que contendra el nombre de la tarea el 'id_proyecto' y la accion que sera 'crear'
+
+***GUARDANDO TAREAS EN LA BD, MOSTRAR ALERTA Y LA NUEVA TAREA SIN RECARGAR LA PAGINA***
+
+-Una vez que creamos el FormData creamos un llamado a AJAX, abrimos la conexion de tipo 'POST' a la URL 
+'inc/modelos/modelo-tarea.php' ejecutamos y enviamos los datos y esperamos una respuesta en '.onload'
+-Del lado del servidor en 'modelo-tarea.php' comprobamos primeramente que la accion recibida por $_POST sea 'crear',
+en caso de si existir creamos las variables para 'id_proyecto' y el nombre de 'tarea', establecemos la conexion a la BD y
+creamos la consulta statement SQL tipo INSERT a la tabla de 'tareas' donde recibira dos argumentos, el nombre de de la 'tarea'
+y el 'id_proyecto'
+-Ejecutamos la consulta y verificamos que la respuesta sea 'correcto' y añadimos a este arreglo de respuesta tambien el
+'id_proyecto', el tipo de accion que es 'crear' y el nombre de la 'tarea', lo codificamos en JSON y lo enviamos al cliente
+-En el lado del cliente con JS convertimos este JSON a objeto de JS, asociamos los argumentos a variables y verificamos
+primeramente que la respuesta sea 'correcto' y ademas que el tipo/accion sea 'crear' la nueva tarea
+-Si ambas validaciones son correctas lanzamos un sweetalert 'success' de que la tarea se agrego correctamente, adicionando
+el nombre de la tarea, sin embargo necesitamos agregar esta 'tarea' nueva al DOM con HTML, en caso de que no exista
+ninguna tarea aun existira un <p> que podemos personalizar para indicar que la lista esta vacia
+-Una vez que insertemos algo en la <ul> de listado de tareas crearemos un nuevo <li> sin embargo debemos construir el template
+de HTML de 'nuevaTarea' agregandole como id=tarea:id_proyecto y la clase 'tarea' para que conserve los estilos y los <i>
+que debe contener ese <li> y lo agregamos al <ul> de 'listadoTareas
+-Una vez que agreguemos la nueva Tarea el formulario de '.agregar-tarea' debe resetearse para poder agregar mas tareas
+
+***MOSTRANDO TODAS LAS TAREAS SEGUN EL PROYECTO***
+
+-En este punto aunque creemos las tareas si recargamos la URL del proyecto estas tareas no se mostraran en el DOM, para eso
+creamos una funcion en PHP en 'funciones.php' que se llamara 'obtenerTareasProyecto' y que recibira como argumento el mismo
+'id_proyecto' que obtuvimos con $_GET de la URL del proyecto
+-Esta funcion creara una conexion con la BD y ejecutara una consulta SELECT donde obtendremos el id (tarea), nombre y el 
+estado de la tabla 'tareas' pero la parte importante es WHERE porque especificamos el 'id_proyecto' es decir solo haremos
+SELECT a las tareas asociadas a ese id_proyecto
+-En el <ul> de listado de tareas mandamos llamar la funcion 'obtenerTareasProyecto' enviando como argumento el 'id_proyecto'
+verificamos primeramente si existen el arreglo de $tareas, tambien verificamos si hay tareas es decir que el numero de filas
+sea mayor que 0, entonces con un 'foreach' iteramos el arreglo y agregamos de forma dinamica las tareas
+-En el <div> de clase 'acciones' donde se encuentra el <i circle> indicaremos que la clase 'completo' se agregara siempre y 
+cuando que 'estado===1' en caso de no ser asi no agregaremos esta clase y quedara en su estilo CSS por default
+-Tambien en caso de que no existan tareas agregamos el <p> con la clase 'lista-vacia' indicando que no hay tareas en este
+proyecto
+
+***DETECTAR EL ID DE LA TAREA QUE EL USUARIO MARCO COMO COMPLETA CAMBIANDO EL 'ESTADO'***
+
+-Creamos un evento cuando hagamos click en 'listado-pendientes' mandamos llamar la funcion 'accionesTareas'
+-Utilizando Delegacion de eventos en JS, cuando hagamos click en el <ul> de listado de tareas/pendientes utilizaremos el
+'target' para verificar el elemento que conttenga la clase 'fa-check-circle' es decir el elemento de fontawesome de la
+palomita, si la contiene verificamos nuevamente que contenga la clase de 'completo' es decir si la tarea esta completa
+tendra la clase de 'completo' (dandole un color verde) si la contiene la removemos ya que estamos cambiando el estado y 
+llamamos la funcion de JS 'cambiarEstadoTarea' enviando el 'target' y el estado = 0, en caso de no tener la clase de 
+'completo' mandamos llamar a la misma funcion 'cambiarEstadoTarea' con los argumentos de 'target' y estado = 1
+-La funcion 'cambiarEstadoTarea' como tal recibe ambos parametros de del <i class="fa-check-circle"> que es el 'target' y el
+estado en el que se encuentre ya sea 1 (con clase 'completo') o 0 (si clase 'completo'), en el mismo 'target' necesitamos
+obtener el 'id' de la tarea ya que ademas de cambiar el estado en el DOM y visualmente necesitamos cambiarlo en la BD tambien
+
+***CAMBIANDO EL 'ESTADO' DE 'TAREAS' EN LA BD***
+
+-Para cambiar el campo de 'estado' en la BD accedemos a los elementos padre de este <i> llegando hasta el <li> donde tenemos
+el id=tarea:id_tarea, sin embargo necesitamos hacer un 'split' con ":" donde nos arrojara un arreglo diviendo este atributo
+de 'id' en forma de arreglo donde en este caso nos interesa el segundo indice [1]=id_tarea
+-Creamos un FormData para enviar los datos al servidor, con los datos del 'idTarea[1]', la accion 'actualizar'  y el 'estado'
+-Hacemos el llamado a AJAX creando el objeto XMLHttpRequest, abrimos la conexion tipo 'POST' a la URL 
+'inc/modelos/modelo-tarea.php', cargamos la respuesta y enviamos la peticion al servidor
+-Del lado del servidor verificamos que si la accion es 'actualizar' obtenemos el 'estado' y el 'id_tarea' del arreglo $_POST
+recibido del cliente, creamos la conexion y realizamos la consulta de tipo UPDATE a 'tareas' donde cambiaremos el 'estado'
+WHERE el 'id_tarea', por lo que recibimos 2 parmetros de tipo entero (ii), uno el estado y el otro el id_tarea
+-Ejecutamos la consulta y verificamos que se hayan afectado la fila/registro esperado y enviamos un array con el valor de
+'respuesta' igual a 'correcto', en este punto ya se cambio el 'estado' en la BD y enviamos el JSON solamente para corrborar
+que el cliente recibe la respuesta, sin embargo no utilizaremos este JSON para mas cosas solamente para corroborar
+la comunicacion entre cliente-servidor
+
+***ELIMINANDO LAS 'TAREAS' DEL DOM/HTML Y DE LA BD'
+
+-Utilizaremos la misma funcion de JS de 'accionesTarea' para aprovechar la delegacion en JS con 'target' y verificamos
+que ese 'target' contenga la clase de 'fa-trash' que es el <i> del bote de basura, una vez que hagamos click en el utilizaremos
+un sweetalert distinto de tipo 'warning' donde colocaremos que si esta seguro de borrar esta 'tarea' donde si presiona
+el boton de confirmacion entonces verificamos el valor de este resultado y mandamos llamar ahora a la funcion de 
+'eliminarTareaBD(<li>)' donde recibira como argumento del <li> o tarea que deseamos eliminar y para eliminar el HTML del DOM
+es muy sencillo solamente utilizando la funcion de '.remove()' y mandamos un sweetalert 'success' de que la 'tarea' se
+elimino correctamente
+-Al llamar a la funcion 'eliminarTareaBD' recibe como para metro ese 'target' que en este caso es un <li> asociado a la tarea
+nuevamente debemos obtener el 'id' y haciendo 'split(:)' creamos un arreglo de los elementos que contiene pero nos interesa
+el id_tarea, creamos un FormData para enviar los datos al servidor y añadimos solamente dos parametros el idTarea[1] y
+la accion que es 'eliminar'
+-Creamos un llamado a AJAX, abrimos la conexion tipo 'POST' en la URL 'inc/modelos/modelo-tarea.php' y cargamos la respuesta
+y enviamos la peticion al servidor
+-Del lado del servidor verificamos que la accion sea 'eliminar' de serlo asi importamos la conexion a la BD, realizamos
+la consulta en este caso sera DELETE de 'tareas' donde el WHERE aqui es muy importante ya que es el 'id_tarea' que deseamos
+eliminar de la BD, recibiendo solamente este argumento tipo entero (i)
+-Ejecutamos la consulta y verificamos que el registro haya sido afectado, en este punto el registro de 'tarea' fue eliminado
+de la BD, para corroborar del lado del cliente enviamos un arreglo de respuesta 'correcto' y lo codificamos en JSON
+-Del lado del cliente con JS simplemente verificamos que recibimos el JSON 'correcto' y ademas debemos añadir una comprobacion
+de que existan tareas, pero no utilizaremos el JSON solamente es para corroborar la comunicacion correcta de cliente-servidor
+-Para esto verificamos que exista un <li class="tarea"> dentro del <ul> listado de pendientes/areas, si el numero de 
+elementos es '0' entonces añadimos nuevamente el <p class='lista-vacia'> para indicar que no hay tareas en este proyecto
+-Esto lo debemos agregar porque al borrar todas las tareas no nos indica que ya no hay tareas en este proyecto, al igual
+que cuando creamos un nuevo proyecto
